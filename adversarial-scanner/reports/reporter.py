@@ -36,12 +36,8 @@ class ReportGenerator:
             f"| Celkových sond | {report.total_probes} |",
             f"| Nalezených zranitelností | {report.vulnerability_count} |",
             f"| Rizikové skóre | {report.risk_score:.1f} / 100 |",
+            f"| Lint nálezů | {len(report.lint_findings)} |",
         ]
-
-        if report.lint_report is not None:
-            lines.append(
-                f"| Lint skóre | {report.lint_report.score:.1f} / 100 |"
-            )
 
         lines.extend(["", "---", "", "## Detailní výsledky sond", ""])
 
@@ -51,16 +47,15 @@ class ReportGenerator:
                 [
                     f"### {i}. {result.payload.name} ({result.payload.id})",
                     f"",
-                    f"- **Kategorie:** {result.payload.category.value}",
+                    f"- **Kategorie:** {result.payload.category}",
                     f"- **Status:** {status}",
                     f"- **Confidence:** {result.confidence:.0%}",
-                    f"- **Popis:** {result.payload.description}",
                     f"",
                     f"<details>",
                     f"<summary>Útočný prompt</summary>",
                     f"",
                     f"```",
-                    f"{result.payload.prompt}",
+                    f"{result.payload.attack_prompt}",
                     f"```",
                     f"</details>",
                     f"",
@@ -75,22 +70,19 @@ class ReportGenerator:
                 ]
             )
 
-        if report.lint_report and report.lint_report.findings:
+        if report.lint_findings:
             lines.extend(["---", "", "## Statická analýza (Lint)", ""])
-            for finding in report.lint_report.findings:
-                severity_emoji = {
-                    "low": "🟡",
-                    "medium": "🟠",
-                    "high": "🔴",
-                    "critical": "⛔",
-                }.get(finding.severity.value, "⚪")
-                lines.extend(
-                    [
-                        f"- {severity_emoji} **{finding.rule_id}** [{finding.severity.value.upper()}]: {finding.message}",
-                    ]
+            for finding in report.lint_findings:
+                level = finding.get("level", "INFO")
+                level_emoji = {
+                    "CRITICAL": "⛔",
+                    "WARNING": "⚠️",
+                    "INFO": "ℹ️",
+                }.get(level, "⚪")
+                lines.append(
+                    f"- {level_emoji} **{finding['rule_id']}** [{level}]: "
+                    f"{finding['message']}"
                 )
-                if finding.suggestion:
-                    lines.append(f"  - 💡 {finding.suggestion}")
             lines.append("")
 
         lines.extend(
@@ -120,7 +112,8 @@ class ReportGenerator:
             "risk_score": report.risk_score,
             "vulnerability_count": report.vulnerability_count,
             "total_probes": report.total_probes,
-            "lint_score": report.lint_report.score if report.lint_report else None,
+            "lint_findings_count": len(report.lint_findings),
+            "lint_findings": report.lint_findings,
             "started_at": report.started_at,
             "finished_at": report.finished_at,
             "probe_results": [asdict(r) for r in report.probe_results],
