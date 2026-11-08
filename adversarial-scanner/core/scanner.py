@@ -223,12 +223,14 @@ def _call_openai(
     from openai import OpenAI
 
     client = OpenAI(api_key=api_key)
+    messages = []
+    if system_prompt and system_prompt.strip():
+        messages.append({"role": "system", "content": system_prompt})
+    messages.append({"role": "user", "content": user_message})
+
     response = client.chat.completions.create(
         model=model,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_message},
-        ],
+        messages=messages,
         max_tokens=1024,
         temperature=0.0,  # Deterministické pro reprodukovatelnost
     )
@@ -245,10 +247,14 @@ def _call_gemini(
     import google.generativeai as genai
 
     genai.configure(api_key=api_key)
-    gm = genai.GenerativeModel(
-        model_name=model,
-        system_instruction=system_prompt,
-    )
+    if system_prompt and system_prompt.strip():
+        gm = genai.GenerativeModel(
+            model_name=model,
+            system_instruction=system_prompt,
+        )
+    else:
+        gm = genai.GenerativeModel(model_name=model)
+
     response = gm.generate_content(
         user_message,
         generation_config=genai.GenerationConfig(
@@ -372,13 +378,16 @@ def _call_anthropic(
     import anthropic
 
     client = anthropic.Anthropic(api_key=api_key)
-    message = client.messages.create(
-        model=model,
-        max_tokens=1024,
-        system=system_prompt if system_prompt else "You are a helpful assistant.",
-        messages=[{"role": "user", "content": user_message}],
-        temperature=0.0,
-    )
+    kwargs = {
+        "model": model,
+        "max_tokens": 1024,
+        "messages": [{"role": "user", "content": user_message}],
+        "temperature": 0.0,
+    }
+    if system_prompt and system_prompt.strip():
+        kwargs["system"] = system_prompt
+
+    message = client.messages.create(**kwargs)
     return message.content[0].text if message.content else ""
 
 
@@ -394,12 +403,14 @@ def _call_groq(
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
+    messages = []
+    if system_prompt and system_prompt.strip():
+        messages.append({"role": "system", "content": system_prompt})
+    messages.append({"role": "user", "content": user_message})
+
     payload = {
         "model": model,
-        "messages": [
-            {"role": "system", "content": system_prompt or "You are a helpful assistant."},
-            {"role": "user", "content": user_message},
-        ],
+        "messages": messages,
         "max_tokens": 1024,
         "temperature": 0.0,
         "stream": False,
@@ -445,8 +456,9 @@ def _call_webhook(
     Returns:
         Extracted text response from the endpoint.
     """
-    # Inject prompt into template
-    body_str = template.replace("{{prompt}}", prompt.replace('"', '\\"'))
+    # Inject prompt safely into JSON template
+    escaped_prompt = json.dumps(prompt)[1:-1]
+    body_str = template.replace("{{prompt}}", escaped_prompt)
 
     try:
         if method.upper() == "POST":
@@ -480,9 +492,14 @@ def _call_webhook(
             if isinstance(data, list):
                 data = data[int(key)]
             elif isinstance(data, dict):
-                data = data[key]
+                data = data.get(key, "")
             else:
                 break
+    elif isinstance(data, dict):
+        # Auto-detect common response keys if response_path was not set
+        for common_key in ("response", "output", "text", "content", "result", "message"):
+            if common_key in data and isinstance(data[common_key], str):
+                return data[common_key]
 
     return str(data) if data else ""
 
