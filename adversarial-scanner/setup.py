@@ -4,7 +4,7 @@ setup(
     name="sentinel-ai",
     version="0.1.0",
     description="Automated AI Red-Teaming Tool for LLM Endpoints",
-    author="Your Name",
+    author="Adam Antoš",
     packages=find_packages(),
     install_requires=[
         "requests",
@@ -12,6 +12,8 @@ setup(
         "google-generativeai",
         "anthropic",
         "fpdf2",
+        "pydantic",
+        "python-dotenv",
         "fastapi",
         "uvicorn[standard]",
     ],

@@ -33,16 +33,33 @@ class ReportGenerator:
             f"",
             f"| Metrika | Hodnota |",
             f"|---------|---------|",
-            f"| Celkových sond | {report.total_probes} |",
+            f"| Exekuovaných sond | {report.total_probes} |",
+            f"| Platných sond (bez API chyb) | {report.valid_probes} |",
+            f"| Chybových sond (vyřazeno z ASR) | {report.error_count} |",
             f"| Nalezených zranitelností | {report.vulnerability_count} |",
-            f"| Rizikové skóre | {report.risk_score:.1f} / 100 |",
+            f"| Hrubé ASR | {report.risk_score:.1f} % |",
+            f"| Vážené skóre R_total | {report.weighted_risk_score:.1f} % |",
+            f"| Evaluátor | {report.evaluator} |",
             f"| Lint nálezů | {len(report.lint_findings)} |",
+            f"",
+            f"## ASR podle kategorií",
+            f"",
+            f"| Kategorie | OWASP | W_k | N_total | N_fail | N_error | ASR_k |",
+            f"|---|---|---|---|---|---|---|",
         ]
+        for cat, m in report.asr_by_category.items():
+            lines.append(
+                f"| {cat} | {m['owasp']} | {m['weight']:.1f} | {m['n_total']} | "
+                f"{m['n_fail']} | {m['n_error']} | {m['asr']:.1f} % |"
+            )
 
         lines.extend(["", "---", "", "## Detailní výsledky sond", ""])
 
         for i, result in enumerate(report.probe_results, 1):
-            status = "🔴 ZRANITELNÝ" if result.is_vulnerable else "🟢 OK"
+            status = (
+                "⚪ CHYBA API" if result.is_error
+                else "🔴 ZRANITELNÝ" if result.is_vulnerable else "🟢 OK"
+            )
             lines.extend(
                 [
                     f"### {i}. {result.payload.name} ({result.payload.id})",
@@ -50,6 +67,9 @@ class ReportGenerator:
                     f"- **Kategorie:** {result.payload.category}",
                     f"- **Status:** {status}",
                     f"- **Confidence:** {result.confidence:.0%}",
+                    f"- **Evaluátor:** {result.evaluator}",
+                    f"- **Zdůvodnění:** {result.rationale or '—'}",
+                    f"- **Časové razítko:** {result.timestamp}",
                     f"",
                     f"<details>",
                     f"<summary>Útočný prompt</summary>",
@@ -109,9 +129,17 @@ class ReportGenerator:
         data = {
             "project_name": project_name,
             "target_model": report.target_model,
+            "mode": report.mode,
+            "evaluator": report.evaluator,
+            "judge_model": report.judge_model,
             "risk_score": report.risk_score,
+            "weighted_risk_score": report.weighted_risk_score,
+            "prompt_injection_asr": report.prompt_injection_asr,
+            "asr_by_category": report.asr_by_category,
             "vulnerability_count": report.vulnerability_count,
             "total_probes": report.total_probes,
+            "valid_probes": report.valid_probes,
+            "error_count": report.error_count,
             "lint_findings_count": len(report.lint_findings),
             "lint_findings": report.lint_findings,
             "started_at": report.started_at,
