@@ -1958,7 +1958,16 @@ class AdversarialScanner:
         raise ValueError(f"Unknown backend: {self.mode}")
 
     def _judge(self, payload: Payload, response: str) -> tuple[bool, float, str]:
-        """Zavolá LLM-as-a-Judge a vrátí (is_vulnerable, confidence, rationale)."""
+        """Zavolá LLM-as-a-Judge a vrátí (is_vulnerable, confidence, rationale).
+
+        Při prázdné či nevalidní odpovědi arbitra se volání jednou zopakuje.
+        """
+        try:
+            return self._judge_once(payload, response)
+        except ValueError:
+            return self._judge_once(payload, response)
+
+    def _judge_once(self, payload: Payload, response: str) -> tuple[bool, float, str]:
         raw = _with_backoff(
             _call_llm_backend,
             self.judge_mode,
