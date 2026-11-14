@@ -31,6 +31,7 @@ from core.payloads import (
     get_categories,
     get_payloads_by_categories,
     CATEGORY_LABELS,
+    OWASP_MAP,
 )
 from core.scanner import AdversarialScanner
 
@@ -49,48 +50,7 @@ st.set_page_config(
 # OWASP Mapping
 # ---------------------------------------------------------------------------
 
-OWASP_MAP: dict[str, dict[str, str]] = {
-    "direct_jailbreak": {
-        "owasp": "LLM01",
-        "title": "Prompt Injection (Direct)",
-        "desc": "DAN, Refusal Suppression, Many-Shot, Crescendo, Persona Hijack",
-    },
-    "indirect_injection": {
-        "owasp": "LLM01",
-        "title": "Prompt Injection (Indirect)",
-        "desc": "RAG poisoning, multi-hop injection, invisible Unicode injection",
-    },
-    "adversarial_obfuscation": {
-        "owasp": "LLM01",
-        "title": "Prompt Injection (Obfuscated)",
-        "desc": "Base64, Unicode Homoglyph, Leetspeak, ROT13, Token Splitting",
-    },
-    "system_prompt_extraction": {
-        "owasp": "LLM07",
-        "title": "System Prompt Leakage",
-        "desc": "Verbatim extraction, translation trick, function-call exfiltration",
-    },
-    "data_leakage": {
-        "owasp": "LLM06",
-        "title": "Sensitive Information Disclosure",
-        "desc": "PII exfiltration, training data extraction, membership inference",
-    },
-    "agentic_exploits": {
-        "owasp": "LLM08",
-        "title": "Excessive Agency",
-        "desc": "Tool misuse, Markdown exfiltration, CoT hijacking, SSRF via tool",
-    },
-    "epistemic_failures": {
-        "owasp": "LLM09",
-        "title": "Misinformation & Output Integrity",
-        "desc": "Sycophancy, instruction drift, RLHF reward hacking, role stacking",
-    },
-    "insecure_output": {
-        "owasp": "LLM02",
-        "title": "Insecure Output Handling",
-        "desc": "XSS, SQL injection, SSRF, Path Traversal, SSTI in generated code",
-    },
-}
+# OWASP_MAP (verze 2025) je importován z core.payloads – jediný zdroj pravdy.
 
 # ---------------------------------------------------------------------------
 # Theme Engine
@@ -1398,15 +1358,21 @@ with tab_eval:
 
                 # ── Metrics ─────────────────────────────────────────────
 
-                m1, m2, m3, m4 = st.columns(4)
-                m1.metric("Total Probes", report.total_probes)
-                m2.metric("Vulnerabilities", report.vulnerability_count)
-                risk = report.risk_score
-                m3.metric("Risk Score", f"{risk:.0f}%")
-                m4.metric(
-                    "Lint Findings",
-                    len(report.lint_findings) if effective_prompt else "N/A",
+                m1, m2, m3, m4, m5 = st.columns(5)
+                m1.metric(
+                    "Valid Probes",
+                    f"{report.valid_probes}/{report.total_probes}",
+                    help="Sondy s API chybou jsou z výpočtu ASR vyřazeny.",
                 )
+                m2.metric("Vulnerabilities", report.vulnerability_count)
+                risk = report.weighted_risk_score
+                m3.metric("Raw ASR", f"{report.risk_score:.0f}%")
+                m4.metric(
+                    "Weighted Risk (R_total)",
+                    f"{risk:.0f}%",
+                    help="Vážený průměr ASR_k s koeficienty W_k (rovnice 2.2).",
+                )
+                m5.metric("Lint Findings", len(report.lint_findings))
 
                 # Risk assessment
                 if risk == 0:
@@ -1615,16 +1581,11 @@ with tab_report:
         )
 
         sm1, sm2, sm3, sm4, sm5 = st.columns(5)
-        sm1.metric("Total Probes", report.total_probes)
-        sm2.metric("Passed", report.total_probes - report.vulnerability_count)
+        sm1.metric("Valid Probes", f"{report.valid_probes}/{report.total_probes}")
+        sm2.metric("Passed", report.valid_probes - report.vulnerability_count)
         sm3.metric("Failed", report.vulnerability_count)
-        sm4.metric("Risk Score", f"{report.risk_score:.0f}%")
-        pass_rate = (
-            ((report.total_probes - report.vulnerability_count) / report.total_probes * 100)
-            if report.total_probes > 0
-            else 0
-        )
-        sm5.metric("Pass Rate", f"{pass_rate:.0f}%")
+        sm4.metric("Raw ASR", f"{report.risk_score:.0f}%")
+        sm5.metric("Weighted Risk (R_total)", f"{report.weighted_risk_score:.0f}%")
 
         st.markdown('<hr class="divider-line">', unsafe_allow_html=True)
 

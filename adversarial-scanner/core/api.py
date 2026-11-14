@@ -98,6 +98,9 @@ class ProbeResultResponse(BaseModel):
     is_vulnerable: bool
     confidence: float
     timestamp: str
+    is_error: bool = False
+    evaluator: str = "heuristic"
+    rationale: str = ""
 
 
 class ScanResponse(BaseModel):
@@ -110,7 +113,11 @@ class ScanResponse(BaseModel):
     finished_at: str | None
     total_probes: int
     vulnerability_count: int
+    valid_probes: int
+    error_count: int
     risk_score: float
+    weighted_risk_score: float
+    asr_by_category: dict[str, dict]
     lint_findings: list[dict]
     probe_results: list[ProbeResultResponse]
     results_by_category: dict[str, list[ProbeResultResponse]]
@@ -131,6 +138,9 @@ def _serialize_probe(result: ProbeResult) -> ProbeResultResponse:
         is_vulnerable=result.is_vulnerable,
         confidence=result.confidence,
         timestamp=result.timestamp,
+        is_error=result.is_error,
+        evaluator=result.evaluator,
+        rationale=result.rationale,
     )
 
 
@@ -150,7 +160,11 @@ def _serialize_report(report: AuditReport) -> ScanResponse:
         finished_at=report.finished_at,
         total_probes=report.total_probes,
         vulnerability_count=report.vulnerability_count,
+        valid_probes=report.valid_probes,
+        error_count=report.error_count,
         risk_score=round(report.risk_score, 2),
+        weighted_risk_score=round(report.weighted_risk_score, 2),
+        asr_by_category=report.asr_by_category,
         lint_findings=report.lint_findings,
         probe_results=probes,
         results_by_category=by_category,

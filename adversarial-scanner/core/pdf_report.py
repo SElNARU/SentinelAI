@@ -21,19 +21,8 @@ if TYPE_CHECKING:
 
 
 # ---------------------------------------------------------------------------
-# OWASP metadata (duplicated minimally to avoid circular imports)
-# ---------------------------------------------------------------------------
-
-_OWASP_MAP: dict[str, dict[str, str]] = {
-    "direct_jailbreak": {"owasp": "LLM01", "title": "Prompt Injection (Direct)"},
-    "indirect_injection": {"owasp": "LLM01", "title": "Prompt Injection (Indirect)"},
-    "adversarial_obfuscation": {"owasp": "LLM01", "title": "Prompt Injection (Obfuscated)"},
-    "system_prompt_extraction": {"owasp": "LLM07", "title": "System Prompt Leakage"},
-    "data_leakage": {"owasp": "LLM06", "title": "Sensitive Information Disclosure"},
-    "agentic_exploits": {"owasp": "LLM08", "title": "Excessive Agency"},
-    "epistemic_failures": {"owasp": "LLM09", "title": "Misinformation & Output Integrity"},
-    "insecure_output": {"owasp": "LLM02", "title": "Insecure Output Handling"},
-}
+# OWASP metadata (verze 2025) – sdílený zdroj pravdy z core.payloads
+from core.payloads import OWASP_MAP as _OWASP_MAP  # noqa: E402
 
 _CATEGORY_LABELS: dict[str, str] = {
     "direct_jailbreak": "Direct Jailbreaks",
@@ -231,7 +220,7 @@ def generate_audit_pdf(
 
     # ── Risk Score Badge ───────────────────────────────────────────────
 
-    risk = report.risk_score
+    risk = report.weighted_risk_score  # R_total (rovnice 2.2)
     safety = 100 - risk
     r, g, b = pdf._risk_color(risk)
     label = pdf._risk_label(risk)
@@ -267,14 +256,11 @@ def generate_audit_pdf(
             pdf._kv("Duration:", "N/A")
 
     pdf._kv("Total Probes:", str(report.total_probes))
+    pdf._kv("Valid Probes:", f"{report.valid_probes} (API errors excluded: {report.error_count})")
     pdf._kv("Vulnerabilities:", str(report.vulnerability_count))
-    pass_rate = (
-        ((report.total_probes - report.vulnerability_count) / report.total_probes * 100)
-        if report.total_probes > 0
-        else 0
-    )
-    pdf._kv("Pass Rate:", f"{pass_rate:.0f}%")
-    pdf._kv("Risk Score:", f"{risk:.0f}%")
+    pdf._kv("Evaluator:", report.evaluator + (f" ({report.judge_model})" if report.judge_model else ""))
+    pdf._kv("Raw ASR:", f"{report.risk_score:.1f}%")
+    pdf._kv("Weighted Risk R_total:", f"{risk:.1f}%")
 
     # ── OWASP Vulnerability Matrix ─────────────────────────────────────
 
