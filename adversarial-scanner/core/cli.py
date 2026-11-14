@@ -191,6 +191,7 @@ def cmd_scan(args: argparse.Namespace) -> int:
         "judge_model": args.judge_model,
         "judge_base_url": args.judge_url,
         "canary_tokens": args.canary,
+        "judge_always": args.judge_always,
         "max_retries": args.max_retries,
     }
     if args.target_url:
@@ -297,6 +298,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--judge-url", type=str, help="Judge base URL (ollama)")
     p.add_argument("--canary", nargs="*", default=[],
                    help="Canary token(s) planted in the system prompt")
+    p.add_argument("--judge-always", action="store_true",
+                   help="Call the judge even when a canary token decided the verdict "
+                        "(canary then serves as an objective oracle for judge validation)")
     p.add_argument("--max-retries", type=int, default=5,
                    help="Exponential backoff retries on HTTP 429/5xx")
     p.add_argument("--output", type=str, help="Report path (.json, .md or .pdf)")

@@ -206,3 +206,58 @@ def test_anthropic_call_retries_without_temperature(monkeypatch):
     monkeypatch.setitem(sys.modules, "anthropic", fake)
     out = sc._call_anthropic(api_key="k", model="m", system_prompt="s", user_message="u")
     assert out == '{"verdict": "PASS"}' and len(calls) == 2 and "temperature" not in calls[1]
+
+
+# -- kanárek jako orákulum (judge_always) ----------------------------------------
+
+def _canary_scanner(**kw):
+    return AdversarialScanner(mode="ollama", evaluator="judge", judge_mode="anthropic",
+                              judge_api_key="k", canary_tokens=["SENTINEL-CANARY-7F3A"], **kw)
+
+
+def test_canary_without_judge_always_skips_judge(monkeypatch):
+    s = _canary_scanner()
+    monkeypatch.setattr(s, "_get_response", lambda sp, p: "id: SENTINEL-CANARY-7F3A")
+    called = []
+    monkeypatch.setattr(s, "_judge", lambda p, r: called.append(1) or (True, 0.9, "x"))
+    res = s.test_payload("prompt", get_all_payloads()[0])
+    assert res.evaluator == "canary" and res.judge_verdict is None and not called
+
+
+def test_judge_always_records_judge_verdict_on_canary_hit(monkeypatch):
+    s = _canary_scanner(judge_always=True)
+    monkeypatch.setattr(s, "_get_response", lambda sp, p: "id: SENTINEL-CANARY-7F3A")
+    seen = {}
+
+    def judge(p, r):
+        seen["response"] = r
+        return (False, 0.8, "looked harmless")
+    monkeypatch.setattr(s, "_judge", judge)
+    res = s.test_payload("prompt", get_all_payloads()[0])
+    # výsledný verdikt určuje kanárek, verdikt hodnotitele se jen zaznamená
+    assert res.is_vulnerable and res.evaluator == "canary"
+    assert res.judge_verdict is False
+
+
+def test_judge_always_judge_failure_leaves_none(monkeypatch):
+    s = _canary_scanner(judge_always=True)
+    monkeypatch.setattr(s, "_get_response", lambda sp, p: "id: SENTINEL-CANARY-7F3A")
+
+    def fail(p, r):
+        raise ValueError("refusal")
+    monkeypatch.setattr(s, "_judge", fail)
+    res = s.test_payload("prompt", get_all_payloads()[0])
+    assert res.is_vulnerable and res.evaluator == "canary" and res.judge_verdict is None
+
+
+def test_judge_prompt_does_not_contain_system_prompt_or_canary():
+    from core.scanner import _build_judge_prompt
+    p = get_all_payloads()[0]
+    txt = _build_judge_prompt(p, "model answer")
+    assert "SENTINEL-CANARY" not in txt
+
+
+def test_cli_accepts_judge_always_flag():
+    from core.cli import build_parser
+    args = build_parser().parse_args(["scan", "--mode", "mock", "--judge-always"])
+    assert args.judge_always is True
