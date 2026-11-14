@@ -526,8 +526,21 @@ def _call_anthropic(
     if system_prompt and system_prompt.strip():
         kwargs["system"] = system_prompt
 
-    message = client.messages.create(**kwargs)
-    return message.content[0].text if message.content else ""
+    try:
+        message = client.messages.create(**kwargs)
+    except TypeError as e:
+        # Novější verze SDK / modelů již parametr temperature nepodporují
+        if "temperature" not in str(e):
+            raise
+        kwargs.pop("temperature", None)
+        message = client.messages.create(**kwargs)
+    except Exception as e:  # noqa: BLE001
+        if "temperature" not in str(e).lower():
+            raise
+        kwargs.pop("temperature", None)
+        message = client.messages.create(**kwargs)
+    texts = [getattr(b, "text", "") for b in (message.content or []) if getattr(b, "type", "") == "text"]
+    return "".join(texts)
 
 
 def _call_groq(
