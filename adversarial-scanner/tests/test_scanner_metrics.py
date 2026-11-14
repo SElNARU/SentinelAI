@@ -185,3 +185,24 @@ def test_cli_scan_quality_gate(tmp_path):
                      "--fail-threshold", "0"]) == EXIT_FAIL
     assert out.exists()
     assert cli_main(["scan", "--mode", "mock", "--fail-threshold", "100.1"]) == EXIT_PASS
+
+
+def test_anthropic_call_retries_without_temperature(monkeypatch):
+    import sys, types
+    calls = []
+
+    class Block:
+        type = "text"
+        text = '{"verdict": "PASS"}'
+
+    class Msgs:
+        def create(self, **kw):
+            calls.append(kw)
+            if "temperature" in kw:
+                raise TypeError("Messages.create() got an unexpected keyword argument 'temperature'")
+            return types.SimpleNamespace(content=[Block()])
+
+    fake = types.SimpleNamespace(Anthropic=lambda api_key: types.SimpleNamespace(messages=Msgs()))
+    monkeypatch.setitem(sys.modules, "anthropic", fake)
+    out = sc._call_anthropic(api_key="k", model="m", system_prompt="s", user_message="u")
+    assert out == '{"verdict": "PASS"}' and len(calls) == 2 and "temperature" not in calls[1]
