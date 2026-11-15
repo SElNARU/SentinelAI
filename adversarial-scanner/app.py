@@ -149,6 +149,16 @@ p, li, label, span, div {
     color: var(--text-primary) !important;
 }
 
+/* Ikonové písmo Streamlitu (Material Symbols) nesmí být přepsáno vlastním fontem,
+   jinak se místo ikon zobrazují jejich názvy (např. "arrow_down", "double_arrow_right"). */
+[data-testid="stIconMaterial"],
+span[class*="material-symbols"],
+[data-testid="stExpanderToggleIcon"],
+[data-testid="stSidebarCollapseButton"] span,
+[data-testid="stSidebarCollapsedControl"] span {
+    font-family: 'Material Symbols Rounded', 'Material Symbols Outlined', 'Material Icons' !important;
+}
+
 code, pre, .stCode, .stMetricValue, [data-testid="stMetricValue"] {
     font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace !important;
 }

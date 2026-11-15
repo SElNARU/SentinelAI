@@ -386,4 +386,5 @@ def generate_audit_pdf(
 
     # ── Output ─────────────────────────────────────────────────────────
 
-    return pdf.output()
+    # fpdf2 vrací bytearray; Streamlit st.download_button (>=1.4x) vyžaduje bytes
+    return bytes(pdf.output())
